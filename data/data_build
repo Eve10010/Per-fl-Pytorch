@@ -1,0 +1,43 @@
+import random
+import pickle
+import torchvision
+import torchvision.transforms as transforms
+
+transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+
+# Classify all data into 10 categories.
+classes = [[] for _ in range(10)]
+for ind in range(len(trainset)):
+    classes[trainset[ind][1]].append(trainset[ind])
+
+for ind in range(len(testset)):
+    classes[testset[ind][1]].append(testset[ind])
+
+# train_user: Each user samples 'num' data from 'class_num' classes.
+num = 640
+class_num = 8
+NUM_USERS = 20
+
+classes_ind_train = random.sample(range(0, 10), class_num)
+
+file_name = ['cifar10_' + str(i) + '.pickle' for i in range(NUM_USERS)]
+
+for i in range(int(NUM_USERS*3/4)):
+    train_data =[]
+    for j in classes_ind_train:
+        train_data.extend(random.sample(classes[j], num))
+
+    with open(file_name[i], 'wb') as file_train:
+        pickle.dump(train_data, file_train)
+
+# train_user: Each user samples 'num' data from 'class_num+1' classes.
+classes_ind_test = random.sample(range(0, 10), class_num+1)
+for i in range(int(NUM_USERS*3/4), NUM_USERS):
+    test_data =[]
+    for j in classes_ind_test:
+        test_data.extend(random.sample(classes[j], num))
+    with open(file_name[i], 'wb') as file_test:
+        pickle.dump(test_data, file_test)
