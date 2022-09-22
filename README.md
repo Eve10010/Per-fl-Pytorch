@@ -8,11 +8,11 @@ pytorch == 1.4.0
 tqdm == 4.55.1
 
 ## Usage
-# 1.build data 
+### 1.build data 
 '''
 python data_build
 '''
-# 2.start training
+### 2.start training
 '''
 python main.py
 ''' 
