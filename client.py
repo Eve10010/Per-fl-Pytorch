@@ -187,7 +187,11 @@ def local_adaptation(args, clients_id, model):
     # loss = 0
     # one step
     correct = 0
-    for epoch in range(args.LAE):
+    if args.algorithm == "Fedavg":
+        num_epoch = args.E
+    elif args.algorithm == "Per-fl":
+        num_epoch = args.LAE
+    for epoch in range(num_epoch):
         for seq, label in Dtr:
             seq, label = seq.to(args.device), label.to(args.device)
             y_pred = model(seq)
