@@ -67,7 +67,33 @@ class Server_:
                 self.nns[i] = local_adaptation(self.args, self.nns[i].name, self.nns[i])
 
     def cluster(self, index):
-        
+        index = range(self.args.K)
+        self.dispatch(index)
+        for t in range(self.args.pre_round):
+            self.client_update(index, t)
+
+        params = []
+        groups = [[] for _ in range(self.args.num_cluster)]
+        for i in index:
+            temp2 = []
+            for k, v in self.nns[i].named_parameters():
+                temp1 = v.data.cpu().numpy()
+                temp1 = np.array(temp1).flatten().tolist()
+                temp2.append(temp1)
+            temp2 = list(eval(str(temp2).replace("[", "").replace("]", "")))
+            params.append(temp2)
+        params = np.array(params, dtype=object)
+
+        clusters = KMeans(self.args.num_cluster, random_state=0).fit(params)
+        print(clusters.labels_)
+        print(clusters.inertia_)
+
+        for e in range(len(clusters.labels_)):
+            groups[clusters.labels_[e]].append(e)
+        print("groups", groups)
+
+        return groups
+
 
     def global_test(self):
         if self.args.algorithm == "Per-fl":
