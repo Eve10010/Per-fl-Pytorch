@@ -21,12 +21,12 @@ num = 640
 class_num = 8
 NUM_USERS = 20
 
-classes_ind_train = random.sample(range(0, 10), class_num)
 
 file_name = ['cifar10_' + str(i) + '.pickle' for i in range(NUM_USERS)]
 
 for i in range(int(NUM_USERS*3/4)):
     train_data =[]
+    classes_ind_train = random.sample(range(0, 10), class_num)
     for j in classes_ind_train:
         train_data.extend(random.sample(classes[j], num))
 
@@ -34,9 +34,10 @@ for i in range(int(NUM_USERS*3/4)):
         pickle.dump(train_data, file_train)
 
 # train_user: Each user samples 'num' data from 'class_num+1' classes.
-classes_ind_test = random.sample(range(0, 10), class_num+1)
+
 for i in range(int(NUM_USERS*3/4), NUM_USERS):
     test_data =[]
+    classes_ind_test = random.sample(range(0, 10), class_num+1)
     for j in classes_ind_test:
         test_data.extend(random.sample(classes[j], num))
     with open(file_name[i], 'wb') as file_test:
