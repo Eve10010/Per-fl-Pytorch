@@ -114,7 +114,7 @@ def get_hessian_free(args, data, grad, w_k):
     grad1 = get_grad(args, data, w_k)
 
     for w_param_, grad_param in zip(w_k_.parameters(), grad.parameters()):
-        w_param_.data = w_param_.data + args.delta * grad_param.grad.data
+        w_param_.data = w_param_.data - args.delta * grad_param.grad.data
     grad2 = get_grad(args, data, w_k_)
 
     for grad1_grad, grad2_grad in zip(grad1.parameters(), grad2.parameters()):
@@ -122,54 +122,6 @@ def get_hessian_free(args, data, grad, w_k):
 
     # hess_free = copy.deepcopy(grad1)
     return grad1
-
-
-def get_hessian(args, data, model):
-    """
-    :param args: hyperparameters
-    :param data: a batch of data
-    :param model: original model
-    :return: hessian matrix
-    """
-    ind = np.random.randint(0, high=len(data), size=None, dtype=int)
-    seq, label = data[ind]
-    seq = seq.to(args.device)
-    label = label.to(args.device)
-    y_pred = model(seq)
-    loss_function = nn.CrossEntropyLoss().to(args.device)
-    loss = loss_function(y_pred, label.long())
-
-    grads = torch.autograd.grad(loss, model.parameters(), retain_graph=True, create_graph=True)
-    # print("grads", grads)
-    hessian_params = []
-
-    # len(grads)=10
-    for k in range(len(grads)):
-        hess_params = torch.zeros_like(grads[k])
-        print("grads[k].size(0)", grads[k].size(0))
-        # grads[k].size(0)=32
-        for i in range(grads[k].size(0)):
-            # grads[k][i].size(0)=3
-            print("grads[k][i].size(0)", grads[k][i].size(0))
-            for j in range(grads[k][i].size(0)):
-                # grads[k][i][j].size(0) = 5
-                print("grads[k][i][j].size(0)", grads[k][i][j].size(0))
-                for m in range(grads[k][i][j].size(0)):
-                    hess_params[i] = torch.autograd.grad(grads[k][i][j], model.parameters(), grad_outputs=torch.ones_like(grads[k][i][j]), retain_graph=True)[k][i]
-
-        '''for i in range(grads[k].size(0)):
-            # w or b?
-            if len(grads[k].size()) == 2:
-                for j in range(grads[k].size(1)):
-                    hess_params[i, j] =torch.autograd.grad(grads[k][i][j], model.parameters(), retain_graph=True)[k][
-                        i, j]
-            else:
-                hess_params[i] = torch.autograd.grad(grads[k][i], model.parameters(), retain_graph=True)[k][i]'''
-
-        hessian_params.append(hess_params)
-
-    return hessian_params
-
 
 def local_adaptation(args, clients_id, model):
     """
