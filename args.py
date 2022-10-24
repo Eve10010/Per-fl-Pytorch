@@ -8,7 +8,7 @@ def args_parser():
     parser.add_argument('--r', "--num-total-epochs", type=int, default=NUM_TOTAL_EPOCHS)
     parser.add_argument('--K', "--num-clients", type=int, default=NUM_CLIENTS)
     parser.add_argument('--LAE', "--local-adaptation-epochs", type=int, default=LOCAL_ADAPTATION_EPOCHS)
-    parser.add_argument('--per_algo_type', type=str, default='MAML_HF', help='choose MAML_FO or MAML_HF')
+    parser.add_argument('--per_algo_type', type=str, default='MAML_FO', help='choose MAML_FO or MAML_HF')
     parser.add_argument('--dt', "--data-type", type=str, default=DATA_TYPE)
     parser.add_argument('--input_dim', "--input-dim", type=int, default=INPUT_DIM)
     parser.add_argument('--lr', "--learning rate", type=float, default=LEARNING_RATE)
