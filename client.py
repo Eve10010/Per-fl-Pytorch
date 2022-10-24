@@ -30,7 +30,7 @@ def train(args, model, ind, round):
         model = get_grad(args, data, model)
         # step3
         # hessian_params = get_hessian(args, data, origin_model)
-        hess_free = get_hessian_free(args, data, model, final_model)
+        # hess_free = get_hessian_free(args, data, model, final_model)
         # step 4
         cnt = 0
 
