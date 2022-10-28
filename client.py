@@ -4,9 +4,10 @@ import torch
 from torch import nn
 import copy
 from tqdm import tqdm
+import random
 from data_process_cifar10_ import nn_seq
 
-def train(args, model, ind, round):
+def train(args, model, ind, round, client_u):
     """
     Client training.
     :param args: hyperparameters
@@ -18,40 +19,39 @@ def train(args, model, ind, round):
     model.train()
     Dtr, Dte = nn_seq(args.clients[ind], args.B)
     model.len = len(Dtr)
+
     print('training...')
     data = [x for x in iter(Dtr)]
-    # "data" is a batch of data to train.
-    for epoch in tqdm(range(args.E), desc='round' + str(round) + ' client' + str(ind) + ' local updating'):
-        # origin_model = copy.deepcopy(model)
-        final_model = copy.deepcopy(model)
-        # step1
-        model = one_step(args, data, model, lr=args.alpha)
-        # step2
-        model = get_grad(args, data, model)
-        # step3
-        # hessian_params = get_hessian(args, data, origin_model)
-        # hess_free = get_hessian_free(args, data, model, final_model)
-        # step 4
-        cnt = 0
 
-        if args.per_algo_type == "MAML-FO":
+    for epoch in tqdm(range(args.E), desc='round' + str(round) + ' client' + str(ind) + ' local updating'):
+        final_model = copy.deepcopy(model)
+        regu_u = weight_flatten(client_u)
+        # step1
+        model = one_step(args, data, model, lr=args.alpha, client_u=regu_u)
+        # step2
+        model = get_grad(args, data, model, regu_u)
+        # step3
+        hessian_model = get_hessian(args, data, final_model, regu_u)
+        # step 4
+        for param, param_grad, hess in zip(final_model.parameters(), model.parameters(), hessian_model.parameters()):
+            I = torch.ones_like(param.data)
+            grad = (I - args.alpha * hess.grad.data) * param_grad.grad.data
+            param.data = param.data - args.beta * grad
+
+        '''if args.per_algo_type == "MAML-FO":
             for param, param_grad in zip(final_model.parameters(), model.parameters()):
                 # hess = hessian_params[cnt]
                 cnt += 1
                 # I = torch.ones_like(param.data)
                 # grad = (I - args.alpha * hess) * param_grad.grad.data
                 param.data = param.data - args.beta * param_grad.grad.data
-        if args.per_algo_type == "MAML-HF":
-            for param, param_grad in zip(final_model.parameters(), model.parameters()):
-                cnt += 1
-                # grad = (I - args.alpha * hess) * param_grad.grad.data
-                param.data = param.data - args.beta * (param_grad.grad.data - args.alpha * hess_free)
+        '''
 
         model = copy.deepcopy(final_model)
 
     return model
 
-def one_step(args, data, model, lr):
+def one_step(args, data, model, lr, client_u):
     """
     :param args: hyperparameters
     :param data: a batch of data
@@ -68,19 +68,27 @@ def one_step(args, data, model, lr):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_function = nn.CrossEntropyLoss().to(args.device)
     loss = loss_function(y_pred, label.long())
+    params = weight_flatten(model)
+    if args.regularization:
+        params = weight_flatten(model)
+        sub = params - client_u
+        loss += args.lamda/args.alphak/2 * torch.dot(sub, sub)
     optimizer.zero_grad()
     loss.backward()
+    '''for v in model.parameters():
+        print("grad:", v.grad.data)
+        break'''
     optimizer.step()
 
     return model
 
 
-def get_grad(args, data, model):
+def get_grad(args, data, model, client_u):
     """
     :param args: hyperparameters
     :param data: a batch of data
     :param model: model after one step gradient descent
-    :return: gradient
+    :return: model
     """
     ind = np.random.randint(0, high=len(data), size=None, dtype=int)
     seq, label = data[ind]
@@ -89,39 +97,41 @@ def get_grad(args, data, model):
     y_pred = model(seq)
     loss_function = nn.CrossEntropyLoss().to(args.device)
     loss = loss_function(y_pred, label.long())
+    if args.regularization:
+        params = weight_flatten(model)
+        sub = params - client_u
+        loss += args.lamda / args.alphak / 2 * torch.dot(sub, sub)
     loss.backward()
 
     return model
 
-def get_hessian_free(args, data, grad, w_k):
+def get_hessian(args, data, model, client_u):
     """
     :param args: hyperparameters
     :param data: a batch of data
-    :param model: gradient of model after one step gradient descent
-    :param w_k: original client model in this round
-    :return hess_free: an approximation for the term of hessian*grad
+    :param model: original model
+    :return: hessian matrix
     """
-    # w1 = w_k + args.delta * grad
-    # w2 = w_k - args.delta * grad
-    # grad_param.data = w_param.data - args.delta * grad_param.grad.data
-    # grad1 = get_grad(args, data, w1)
-    # grad2 = get_grad(args, data, w2)
-    # hess_free = 0.5 / args.delta * (grad1 - grad2)
+    ind = np.random.randint(0, high=len(data), size=None, dtype=int)
+    seq, label = data[ind]
+    seq = seq.to(args.device)
+    label = label.to(args.device)
+    y_pred = model(seq)
+    loss_function = nn.CrossEntropyLoss().to(args.device)
+    loss = loss_function(y_pred, label.long())
+    if args.regularization:
+        params = weight_flatten(model)
+        sub = params - client_u
+        loss += args.lamda / args.alphak / 2 * torch.dot(sub, sub)
+    grad_params = torch.autograd.grad(loss, model.parameters(),
+                                      retain_graph=True, create_graph=True)
+    grad_norm = 0
+    for grad in grad_params:
+        grad_norm += grad.pow(2).sum()
+    grad_norm = grad_norm.sqrt()
+    grad_norm.backward()
 
-    w_k_ = copy.deepcopy(w_k)
-    for w_param, grad_param in zip(w_k.parameters(), grad.parameters()):
-        w_param.data = w_param.data + args.delta * grad_param.grad.data
-    grad1 = get_grad(args, data, w_k)
-
-    for w_param_, grad_param in zip(w_k_.parameters(), grad.parameters()):
-        w_param_.data = w_param_.data - args.delta * grad_param.grad.data
-    grad2 = get_grad(args, data, w_k_)
-
-    for grad1_grad, grad2_grad in zip(grad1.parameters(), grad2.parameters()):
-        grad1_grad.grad.data = 0.5 / args.delta * (grad1_grad.grad.data - grad2_grad.grad.data)
-
-    # hess_free = copy.deepcopy(grad1)
-    return grad1
+    return model
 
 def local_adaptation(args, clients_id, model):
     """
@@ -143,6 +153,7 @@ def local_adaptation(args, clients_id, model):
         num_epoch = args.E
     elif args.algorithm == "Per-fl":
         num_epoch = args.LAE
+
     for epoch in range(num_epoch):
         for seq, label in Dtr:
             seq, label = seq.to(args.device), label.to(args.device)
@@ -154,14 +165,10 @@ def local_adaptation(args, clients_id, model):
             total += label.size(0)
             _, predicted = torch.max(y_pred.data, 1)
             correct += (predicted.data.cpu().numpy() == label.data.cpu().numpy()).sum()
-
-        '''local = 'local.txt'
-        with open(local, "a") as file1:
-            file1.write("acc" + str(100 * correct / total) + "%" + "\n")
-
-        loss_txt = "loss.txt"
-        with open(loss_txt, "a") as file2:
-           file2.write("loss" + str(loss.item()) + "%" + "\n")'''
+            local = 'local.txt'
+            with open(local, "a") as localfile:
+                localfile.write(str(clients_id) + " epoch " + str(epoch) + " acc " + str(100 * correct / total) + "%" + "\n")
+                localfile.write(str(clients_id) + " epoch " + str(epoch) + " loss " + str(loss.item()) + "\n")
 
     return model
 
@@ -173,6 +180,7 @@ def test(args, clients_id, Model):
     loss_ = []
     correct = 0
     total = 0
+    cnt = 0
 
     for (seq, target) in tqdm(Dte):
         with torch.no_grad():
@@ -180,27 +188,33 @@ def test(args, clients_id, Model):
             y_pred = Model(seq)
             loss = loss_function(y_pred, target.long())
             _, predicted = torch.max(y_pred.data, 1)
-            # print('predictetd', predicted)
-            # print('target', target)
             total += target.size(0)
-            print('total', total)
             '''target = target.cpu()
             target = target.detach().numpy()'''
             correct += (predicted.data.cpu().numpy() == target.data.cpu().numpy()).sum()
 
-            # loss_.append(loss)
+            loss_.append(loss)
+            cnt += 1
             '''for i in range(len(y_pred.data)):
                 temp = torch.argmax((y_pred.data[i]))
                 cnt += 1
                 if temp == target.data[i]:
                     correct += 1'''
 
-    acc_txt = "acc.txt"
-    print("acc " + str(100 * correct / total) + "%" + "\n")
+    acc_txt = "log.txt"
+    # print(str(clients_id) + "test acc " + str(100 * correct / total) + "%" + "\n")
     # loss_txt = "loss.txt"
-    # Loss = sum(loss_)/cnt
+    Loss = sum(loss_)/cnt
     with open(acc_txt, "a") as file1:
-        file1.write("acc " + str(100 * correct / total) + "%" + "\n")
+        file1.write(str(clients_id) + " test acc " + str(100 * correct / total) + "%" + "\n")
+        file1.write(str(clients_id) + " test loss " + str(Loss) + " " + "\n")
 
     # with open(loss_txt, "a") as file2:
     #    file2.write("loss" + str(Loss) + " " + "\n")
+
+def weight_flatten(model):
+    params = []
+    for u in model.parameters():
+        params.append(u.view(-1))
+    params = torch.cat(params)
+    return params
