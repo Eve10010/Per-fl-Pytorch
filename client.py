@@ -195,22 +195,14 @@ def test(args, clients_id, Model):
 
             loss_.append(loss)
             cnt += 1
-            '''for i in range(len(y_pred.data)):
-                temp = torch.argmax((y_pred.data[i]))
-                cnt += 1
-                if temp == target.data[i]:
-                    correct += 1'''
 
     acc_txt = "log.txt"
-    # print(str(clients_id) + "test acc " + str(100 * correct / total) + "%" + "\n")
-    # loss_txt = "loss.txt"
+
     Loss = sum(loss_)/cnt
     with open(acc_txt, "a") as file1:
         file1.write(str(clients_id) + " test acc " + str(100 * correct / total) + "%" + "\n")
         file1.write(str(clients_id) + " test loss " + str(Loss) + " " + "\n")
 
-    # with open(loss_txt, "a") as file2:
-    #    file2.write("loss" + str(Loss) + " " + "\n")
 
 def weight_flatten(model):
     params = []
