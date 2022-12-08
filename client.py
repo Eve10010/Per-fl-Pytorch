@@ -7,7 +7,7 @@ from tqdm import tqdm
 import random
 from data_process_cifar10_ import nn_seq
 
-def train(args, model, ind, round, client_u):
+def train(args, model, ind, round):
     """
     Client training.
     :param args: hyperparameters
@@ -25,13 +25,12 @@ def train(args, model, ind, round, client_u):
 
     for epoch in tqdm(range(args.E), desc='round' + str(round) + ' client' + str(ind) + ' local updating'):
         final_model = copy.deepcopy(model)
-        regu_u = weight_flatten(client_u)
         # step1
-        model = one_step(args, data, model, lr=args.alpha, client_u=regu_u)
+        model = one_step(args, data, model, lr=args.alpha)
         # step2
-        model = get_grad(args, data, model, regu_u)
+        model = get_grad(args, data, model)
         # step3
-        hessian_model = get_hessian(args, data, final_model, regu_u)
+        hessian_model = get_hessian(args, data, final_model)
         # step 4
         for param, param_grad, hess in zip(final_model.parameters(), model.parameters(), hessian_model.parameters()):
             I = torch.ones_like(param.data)
@@ -51,7 +50,7 @@ def train(args, model, ind, round, client_u):
 
     return model
 
-def one_step(args, data, model, lr, client_u):
+def one_step(args, data, model, lr):
     """
     :param args: hyperparameters
     :param data: a batch of data
@@ -69,10 +68,6 @@ def one_step(args, data, model, lr, client_u):
     loss_function = nn.CrossEntropyLoss().to(args.device)
     loss = loss_function(y_pred, label.long())
     params = weight_flatten(model)
-    if args.regularization:
-        params = weight_flatten(model)
-        sub = params - client_u
-        loss += args.lamda/args.alphak/2 * torch.dot(sub, sub)
     optimizer.zero_grad()
     loss.backward()
     '''for v in model.parameters():
@@ -83,7 +78,7 @@ def one_step(args, data, model, lr, client_u):
     return model
 
 
-def get_grad(args, data, model, client_u):
+def get_grad(args, data, model):
     """
     :param args: hyperparameters
     :param data: a batch of data
@@ -97,15 +92,11 @@ def get_grad(args, data, model, client_u):
     y_pred = model(seq)
     loss_function = nn.CrossEntropyLoss().to(args.device)
     loss = loss_function(y_pred, label.long())
-    if args.regularization:
-        params = weight_flatten(model)
-        sub = params - client_u
-        loss += args.lamda / args.alphak / 2 * torch.dot(sub, sub)
     loss.backward()
 
     return model
 
-def get_hessian(args, data, model, client_u):
+def get_hessian(args, data, model):
     """
     :param args: hyperparameters
     :param data: a batch of data
@@ -119,10 +110,6 @@ def get_hessian(args, data, model, client_u):
     y_pred = model(seq)
     loss_function = nn.CrossEntropyLoss().to(args.device)
     loss = loss_function(y_pred, label.long())
-    if args.regularization:
-        params = weight_flatten(model)
-        sub = params - client_u
-        loss += args.lamda / args.alphak / 2 * torch.dot(sub, sub)
     grad_params = torch.autograd.grad(loss, model.parameters(),
                                       retain_graph=True, create_graph=True)
     grad_norm = 0
